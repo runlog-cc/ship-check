@@ -1,5 +1,5 @@
 name: RunLog Ship-Check
-description: Validate recorded JSON scenario evidence and require an explicit remote APPROVED verdict.
+description: Verify supplied artifact hashes, trusted commit bindings and a signed trace-loop policy; or check recorded assertions offline.
 author: RunLog
 branding:
   icon: shield
@@ -7,15 +7,50 @@ branding:
 inputs:
   token:
     description: RunLog API key
-    required: true
+    required: false
+  offline:
+    description: Check record-only assertions without credentials, network or gate approval
+    default: "false"
+    required: false
+  expected-repo:
+    description: Trusted repository override (default github.repository; never read from evidence)
+    required: false
+  expected-head-sha:
+    description: Trusted candidate SHA override (default PR head or github.sha)
+    required: false
+  expected-base-sha:
+    description: Trusted baseline SHA override (default PR base or push before)
+    required: false
   scenarios:
-    description: Path to version 1 JSON assertion suite
-    required: true
+    description: Path to version 1 JSON assertion suite (record-only mode)
+    required: false
   trace:
-    description: Path to recorded candidate JSON trace array
-    required: true
+    description: Path to recorded candidate JSON trace array (record-only mode)
+    required: false
   baseline-trace:
-    description: Optional recorded baseline trace array
+    description: Optional caller-recorded baseline trace array (record-only mode)
+    required: false
+  evaluation-evidence:
+    description: Path to runlog.evaluation-evidence.v2 JSON artifact
+    required: false
+  evaluation-suite:
+    description: Path to the exact suite file bound by evaluation evidence
+    required: false
+  evaluation-workflow:
+    description: Path to the exact evaluation workflow file bound by evidence
+    required: false
+  evaluation-report:
+    description: Path to the measured evaluation report bound by evidence
+    required: false
+  issuer-public-key:
+    description: Path to trusted Ed25519 issuer public JWK JSON (must not come from an untrusted PR)
+    required: false
+  expected-issuer:
+    description: Expected HTTPS gate issuer origin
+    required: false
+  decision-max-age-seconds:
+    description: Maximum accepted signed gate-decision age
+    default: "900"
     required: false
   api-url:
     description: HTTPS gate endpoint (receives the API key and trace)
@@ -30,16 +65,36 @@ runs:
       shell: bash
       env:
         RUNLOG_TOKEN: ${{ inputs.token }}
+        OFFLINE: ${{ inputs.offline }}
+        RUNLOG_EXPECTED_REPO: ${{ inputs.expected-repo || github.repository }}
+        RUNLOG_EXPECTED_HEAD_SHA: ${{ inputs.expected-head-sha || github.event.pull_request.head.sha || github.sha }}
+        RUNLOG_EXPECTED_BASE_SHA: ${{ inputs.expected-base-sha || github.event.pull_request.base.sha || github.event.before }}
         SCENARIOS_PATH: ${{ inputs.scenarios }}
         TRACE_PATH: ${{ inputs.trace }}
         BASELINE_PATH: ${{ inputs.baseline-trace }}
+        EVALUATION_EVIDENCE_PATH: ${{ inputs.evaluation-evidence }}
+        EVALUATION_SUITE_PATH: ${{ inputs.evaluation-suite }}
+        EVALUATION_WORKFLOW_PATH: ${{ inputs.evaluation-workflow }}
+        EVALUATION_REPORT_PATH: ${{ inputs.evaluation-report }}
+        ISSUER_PUBLIC_KEY_PATH: ${{ inputs.issuer-public-key }}
+        EXPECTED_ISSUER: ${{ inputs.expected-issuer }}
+        DECISION_MAX_AGE_SECONDS: ${{ inputs.decision-max-age-seconds }}
         RUNLOG_GATE_URL: ${{ inputs.api-url }}
         ACTION_PATH: ${{ github.action_path }}
         HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         BASE_SHA: ${{ github.event.pull_request.base.sha }}
       run: |
-        args=(--scenarios "$SCENARIOS_PATH" --trace "$TRACE_PATH")
-        if [[ -n "$BASELINE_PATH" ]]; then
-          args+=(--baseline-trace "$BASELINE_PATH")
+        if [[ -n "$EVALUATION_EVIDENCE_PATH" ]]; then
+          args=(--evaluation-evidence "$EVALUATION_EVIDENCE_PATH" --evaluation-suite "$EVALUATION_SUITE_PATH" --evaluation-workflow "$EVALUATION_WORKFLOW_PATH" --evaluation-report "$EVALUATION_REPORT_PATH" --issuer-public-key "$ISSUER_PUBLIC_KEY_PATH" --expected-issuer "$EXPECTED_ISSUER" --decision-max-age-seconds "$DECISION_MAX_AGE_SECONDS")
+        else
+          args=(--scenarios "$SCENARIOS_PATH" --trace "$TRACE_PATH")
+          if [[ -n "$BASELINE_PATH" ]]; then
+            args+=(--baseline-trace "$BASELINE_PATH")
+          fi
         fi
+        case "$OFFLINE" in
+          true) args+=(--offline) ;;
+          false) ;;
+          *) echo "offline must be true or false" >&2; exit 1 ;;
+        esac
         python "$ACTION_PATH/runner.py" "${args[@]}"

@@ -3,6 +3,7 @@ import io
 import json
 import os
 import tempfile
+import hashlib
 from unittest.mock import patch
 import importlib.util
 import unittest
@@ -72,6 +73,74 @@ class GateTests(unittest.TestCase):
     def test_no_token_cli_argument(self):
         with self.assertRaises(SystemExit):
             runner.parse_args(['--scenarios', 'suite.json', '--trace', 'trace.json', '--token', 'secret'])
+
+
+class EvaluationEvidenceTests(unittest.TestCase):
+    signed_fixture = {
+        'jwk': {'kty': 'OKP', 'crv': 'Ed25519', 'x': 'A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg'},
+        'signed_payload': '{"issuer":"https://gate.example","repo":"acme/widget","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","base_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","issued_at":"2026-09-08T00:00:00Z","trace_sha256":"262b40663397d47a97258b671983c435263bbb0d7162add1c7b4b799e4257355","verdict":"APPROVED"}',
+        'signature': '/xKK6u2agp2iOut+OmDy7lcFRg9giI+jQfNPlOfpeZ4/Vj3Vn4904EzihgJcTPPA8apxkqs6LN7sQzikbBIQBA==',
+        'payload_sha256': '68e357fdbd94e2288377cc59ed9d4ce71eecdda1ffbecf6ab6a8350946dc124d',
+        'signature_algorithm': 'Ed25519',
+    }
+
+    def _write_bridge(self, directory):
+        root = Path(directory)
+        suite, workflow, report = root / 'suite.json', root / 'workflow.yml', root / 'report.json'
+        suite.write_text('{"version":1}')
+        workflow.write_text('name: measured evaluation\n')
+        report.write_text(json.dumps({'summary': {'scenarios': 1, 'passed': 1, 'failed': 0}, 'trace': [{'scenario_id': 'lookup'}]}))
+        digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
+        evidence = {
+            'schema': runner.EVIDENCE_SCHEMA, 'trace_encoding': runner.TRACE_ENCODING, 'repo': 'acme/widget',
+            'head_sha': 'a' * 40, 'base_sha': 'b' * 40,
+            'suite_sha256': digest(suite), 'workflow_sha256': digest(workflow),
+            'report_sha256': digest(report), 'gate_trace_sha256': runner.gate_trace_digest([{'scenario_id': 'lookup'}]),
+            'evaluated_result': {'status': 'PASSED', 'summary': {'scenarios': 1, 'passed': 1, 'failed': 0}},
+            'policy_version': 'policy.v1', 'timestamp': '2026-09-08T00:00:00Z',
+        }
+        evidence_path = root / 'evidence.json'
+        evidence_path.write_text(json.dumps(evidence))
+        return evidence_path, suite, workflow, report
+
+    def test_known_signed_fixture_and_bridge_succeeds(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence, suite, workflow, report = self._write_bridge(directory)
+            parsed = runner.verify_evaluation_evidence(evidence, suite, workflow, report)
+            self.assertEqual(parsed['repo'], 'acme/widget')
+            # The known Ed25519 signature remains valid, but its legacy packet
+            # cannot satisfy the v2 trace policy and artifact binding contract.
+            import base64
+            runner.verify_ed25519(self.signed_fixture['jwk'], self.signed_fixture['signed_payload'].encode(), base64.b64decode(self.signed_fixture['signature']))
+            with self.assertRaises(ValueError):
+                runner.verify_gate_decision(self.signed_fixture, self.signed_fixture['jwk'], 'https://gate.example', parsed, now=1788825600, max_age_seconds=60)
+
+    def test_tampered_or_swapped_bridge_files_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence, suite, workflow, report = self._write_bridge(directory)
+            report.write_text('{"replaced":true}')
+            with self.assertRaises(ValueError):
+                runner.verify_evaluation_evidence(evidence, suite, workflow, report)
+            evidence, suite, workflow, report = self._write_bridge(directory)
+            with self.assertRaises(ValueError):
+                runner.verify_evaluation_evidence(evidence, workflow, suite, report)
+
+    def test_signed_decision_rejects_stale_wrong_key_and_wrong_commit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            evidence, suite, workflow, report = self._write_bridge(directory)
+            parsed = runner.verify_evaluation_evidence(evidence, suite, workflow, report)
+            with self.assertRaises(ValueError):
+                runner.verify_gate_decision(dict(self.signed_fixture, signature_algorithm=None), self.signed_fixture['jwk'], 'https://gate.example', parsed, now=1788825600, max_age_seconds=60)
+            with self.assertRaises(ValueError):
+                runner.verify_gate_decision(dict(self.signed_fixture, payload_sha256='0' * 64), self.signed_fixture['jwk'], 'https://gate.example', parsed, now=1788825600, max_age_seconds=60)
+            with self.assertRaises(ValueError):
+                runner.verify_gate_decision(self.signed_fixture, self.signed_fixture['jwk'], 'https://gate.example', parsed, now=1788825800, max_age_seconds=60)
+            wrong_jwk = dict(self.signed_fixture['jwk'], x='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')
+            with self.assertRaises(ValueError):
+                runner.verify_gate_decision(self.signed_fixture, wrong_jwk, 'https://gate.example', parsed, now=1788825600, max_age_seconds=60)
+            parsed['head_sha'] = 'd' * 40
+            with self.assertRaises(ValueError):
+                runner.verify_gate_decision(self.signed_fixture, self.signed_fixture['jwk'], 'https://gate.example', parsed, now=1788825600, max_age_seconds=60)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,90 @@
+[
+  {
+    "value": null,
+    "canonical": "[\"null\"]",
+    "sha256": "53b41ab0dae62befcb8708620b6d14794a24fedad6c24c03dd01e51fa698ff0b"
+  },
+  {
+    "value": true,
+    "canonical": "[\"boolean\",true]",
+    "sha256": "ff26742602682f2e255c585ab7254e92583d71a61264aa4468aea39f2f833d85"
+  },
+  {
+    "value": false,
+    "canonical": "[\"boolean\",false]",
+    "sha256": "3f25a6a4ef643d08117af600253070596fce6849f3959961cf9a34f6107befbb"
+  },
+  {
+    "value": 0.0,
+    "canonical": "[\"number\",\"0000000000000000\"]",
+    "sha256": "af61886518b0ec1da50e0b7e877a7e02cc7173f0becd9a994e1e5e661a16e3ee"
+  },
+  {
+    "value": -0.0,
+    "canonical": "[\"number\",\"0000000000000000\"]",
+    "sha256": "af61886518b0ec1da50e0b7e877a7e02cc7173f0becd9a994e1e5e661a16e3ee"
+  },
+  {
+    "value": 1.0,
+    "canonical": "[\"number\",\"3ff0000000000000\"]",
+    "sha256": "df2b193c17497e825a7fb58772b5b1a2dca434b0dfa9a879aa6878d5d6e147ba"
+  },
+  {
+    "value": 1e-06,
+    "canonical": "[\"number\",\"3eb0c6f7a0b5ed8d\"]",
+    "sha256": "07c1a6658d35c94ac9174778fd254f4690764349412e79aae31d3a0d4e254b3d"
+  },
+  {
+    "value": 1e-07,
+    "canonical": "[\"number\",\"3e7ad7f29abcaf48\"]",
+    "sha256": "9eca7ffff1efbb88889690fc66340991c79ebaeea2785502317943b59702400d"
+  },
+  {
+    "value": 0.002,
+    "canonical": "[\"number\",\"3f60624dd2f1a9fc\"]",
+    "sha256": "748c2a5681aebef14c4dba5d5419db526ecffb8485579f8b274d8fbccd1d5b37"
+  },
+  {
+    "value": 9007199254740991,
+    "canonical": "[\"number\",\"433fffffffffffff\"]",
+    "sha256": "8bfa8a22a18dd1b3c1c8246448ee81e1864edb32844d4c2065293f5ddfeb7604"
+  },
+  {
+    "value": "é😀",
+    "canonical": "[\"string\",\"c3a9f09f9880\"]",
+    "sha256": "666883b77509b0f17de5e32bff7b8ed1d4c1cc8b8c0a8976396be7cf492c9c03"
+  },
+  {
+    "value": {
+      "2": 0,
+      "10": 1,
+      "😀": "é"
+    },
+    "canonical": "[\"object\",[[\"3130\",[\"number\",\"3ff0000000000000\"]],[\"32\",[\"number\",\"0000000000000000\"]],[\"f09f9880\",[\"string\",\"c3a9\"]]]]",
+    "sha256": "6cdb4b14abc3b490e26ecb47a951cc3ced481cbd66a23f86c346046d822f7391"
+  },
+  {
+    "value": [
+      {
+        "tool": "read",
+        "args": {
+          "cost": 0.0,
+          "small": 1e-06
+        },
+        "cost_usd": 0.002
+      }
+    ],
+    "canonical": "[\"array\",[[\"object\",[[\"61726773\",[\"object\",[[\"636f7374\",[\"number\",\"0000000000000000\"]],[\"736d616c6c\",[\"number\",\"3eb0c6f7a0b5ed8d\"]]]]],[\"636f73745f757364\",[\"number\",\"3f60624dd2f1a9fc\"]],[\"746f6f6c\",[\"string\",\"72656164\"]]]]]]",
+    "sha256": "27a4b690de67e682016e3d6a2fe938328cda912ea8816b367efcf68ef3712e4d"
+  },
+  {
+    "value": {
+      "empty": {},
+      "list": [],
+      "null": null,
+      "bool": true
+    },
+    "canonical": "[\"object\",[[\"626f6f6c\",[\"boolean\",true]],[\"656d707479\",[\"object\",[]]],[\"6c697374\",[\"array\",[]]],[\"6e756c6c\",[\"null\"]]]]",
+    "sha256": "8c305a953f9495b9e5e1a01030906a0d35e7e87ce3dcd7be187a6844a94bf674"
+  }
+]
