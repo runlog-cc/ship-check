@@ -1,0 +1,172 @@
+{
+  "evalId": "eval-wRh-2026-09-14T08:52:44",
+  "results": {
+    "version": 3,
+    "timestamp": "2026-09-14T08:52:44.471Z",
+    "prompts": [
+      {
+        "raw": "ready",
+        "label": "ready",
+        "id": "b24d6d33736ecd5604a4b17bc9c6481039fac362bb7df044ef1c10a2bfd21db6",
+        "provider": "echo",
+        "metrics": {
+          "score": 1,
+          "testPassCount": 1,
+          "testFailCount": 0,
+          "testErrorCount": 0,
+          "assertPassCount": 1,
+          "assertFailCount": 0,
+          "totalLatencyMs": 1,
+          "tokenUsage": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0
+            }
+          },
+          "namedScores": {},
+          "namedScoresCount": {},
+          "cost": 0
+        }
+      }
+    ],
+    "results": [
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "equals",
+                "value": "ready"
+              }
+            }
+          ],
+          "assertion": null
+        },
+        "id": "68afbd29-b0c8-42df-89d6-7b79904a1e9b",
+        "latencyMs": 1,
+        "namedScores": {},
+        "prompt": {
+          "raw": "ready",
+          "label": "ready"
+        },
+        "promptId": "b24d6d33736ecd5604a4b17bc9c6481039fac362bb7df044ef1c10a2bfd21db6",
+        "promptIdx": 0,
+        "provider": {
+          "id": "echo",
+          "label": ""
+        },
+        "response": {
+          "output": "ready",
+          "raw": "ready",
+          "cost": 0,
+          "cached": false,
+          "tokenUsage": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0
+          },
+          "isRefusal": false,
+          "metadata": {}
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "assert": [
+            {
+              "type": "equals",
+              "value": "ready"
+            }
+          ],
+          "metadata": {
+            "runlog_scenario_id": "case1"
+          },
+          "vars": {},
+          "options": {}
+        },
+        "testIdx": 0,
+        "vars": {},
+        "metadata": {
+          "runlog_scenario_id": "case1",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      }
+    ],
+    "stats": {
+      "successes": 1,
+      "failures": 0,
+      "errors": 0,
+      "tokenUsage": {
+        "cached": 0,
+        "completion": 0,
+        "prompt": 0,
+        "total": 0,
+        "numRequests": 1,
+        "completionDetails": {
+          "reasoning": 0,
+          "acceptedPrediction": 0,
+          "rejectedPrediction": 0
+        },
+        "assertions": {
+          "total": 0,
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0
+        }
+      }
+    }
+  },
+  "config": {
+    "prompts": [
+      {
+        "raw": "ready",
+        "label": "ready"
+      }
+    ],
+    "providers": [
+      "echo"
+    ],
+    "tests": [
+      {
+        "assert": [
+          {
+            "type": "equals",
+            "value": "ready"
+          }
+        ],
+        "metadata": {
+          "runlog_scenario_id": "case1"
+        }
+      }
+    ],
+    "outputPath": "/tmp/ship-promptfoo/actual-export.json",
+    "writeLatestResults": false
+  },
+  "shareableUrl": null
+}

@@ -41,8 +41,10 @@ try {
  server=https.createServer({key:await readFile(path.join(temp,'key.pem')),cert:await readFile(path.join(temp,'cert.pem'))},async (incoming,outgoing)=>{
   try {
    calls++;let body='';for await(const chunk of incoming)body+=chunk;
+   if(mode==='v2-downgrade'){const request=JSON.parse(body);request.gate_contract='runlog.trace-gate.v2';body=JSON.stringify(request);}
    const response=await worker.fetch(new Request('https://runlog.cc/api/v1/gate',{method:'POST',headers:incoming.headers,body}),env);
    const result=await response.json();
+   if(mode==='v2-downgrade')await writeFile(path.join(temp,'v2-packet.json'),JSON.stringify(result));
    if(mode==='swap-binding' && result.signed_payload){
     const packet=JSON.parse(result.signed_payload);packet.artifact_binding.report_sha256='0'.repeat(64);
     result.signed_payload=JSON.stringify(packet);
@@ -58,8 +60,11 @@ try {
  const approved=await run(args);assert.equal(approved.code,0,approved.stderr);assert.match(approved.stdout,/signed trace-loop policy/);assert.equal(calls,1);
  const swapped=[...args];swapped[swapped.indexOf('--expected-head-sha')+1]='c'.repeat(40);assert.equal((await run(swapped)).code,1);assert.equal(calls,1,'CI mismatch must fail before HTTP');
  mode='swap-binding';assert.equal((await run(args)).code,1,'validly signed wrong artifact must fail');assert.equal(calls,2);
- mode='normal';const legacy=await run([path.join(root,'runner.py'),'--scenarios',path.join(temp,'suite.json'),'--trace',path.join(temp,'trace.json'),'--gate-url',`https://127.0.0.1:${server.address().port}/api/v1/gate`]);assert.equal(legacy.code,0,legacy.stderr);assert.equal(calls,3);
- console.log('PASS: installed CLI/local HTTPS/Worker signing; CI mismatch; signed artifact mismatch; legacy compatibility');
+ mode='v2-downgrade';assert.equal((await run(args)).code,1,'v3 client must reject validly signed v2 downgrade');assert.equal(calls,3);
+ const verifyV2 = `import sys; sys.path.insert(0,sys.argv[1]); import runner; from pathlib import Path; p=Path(sys.argv[2]); e=runner.load_json(p/'evidence.json'); runner.verify_gate_decision(runner.load_json(p/'v2-packet.json'),runner.load_json(p/'issuer.json'),'https://runlog.cc',e,expected_artifact_binding=runner.artifact_binding(e,p/'evidence.json'),expected_contract='runlog.trace-gate.v2')`;
+ const compatible=await run(['-c',verifyV2,root,temp]);assert.equal(compatible.code,0,compatible.stderr);
+ mode='normal';const legacy=await run([path.join(root,'runner.py'),'--scenarios',path.join(temp,'suite.json'),'--trace',path.join(temp,'trace.json'),'--gate-url',`https://127.0.0.1:${server.address().port}/api/v1/gate`]);assert.equal(legacy.code,0,legacy.stderr);assert.equal(calls,4);
+ console.log('PASS: installed CLI/local HTTPS/Worker signing; CI mismatch; signed artifact mismatch; v3 downgrade rejection; explicit signed v2 and legacy compatibility');
 } finally {
  if(server)await new Promise(resolve=>server.close(resolve));
  globalThis.fetch=oldFetch;env.PLATFORM_DB.sql.close();await rm(temp,{recursive:true,force:true});

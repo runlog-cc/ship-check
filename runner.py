@@ -19,11 +19,14 @@ import urllib.parse
 import urllib.request
 
 MAX_BYTES = 5 * 1024 * 1024
-VERSION = '0.2.0'
+VERSION = '0.3.0'
+MAX_GATE_BYTES = 128 * 1024
+MAX_AGE_SECONDS = 86400
 EVIDENCE_SCHEMA = 'runlog.evaluation-evidence.v2'
 TRACE_ENCODING = 'runlog.canonical-json.v1'
-GATE_CONTRACT = 'runlog.trace-gate.v2'
-GATE_POLICY = 'runlog.repeated-tool-cycle.v1'
+GATE_CONTRACT = 'runlog.trace-gate.v3'
+GATE_POLICY = 'runlog.scenario-tool-cycle.v1'
+GATE_POLICIES = {'runlog.trace-gate.v2': 'runlog.repeated-tool-cycle.v1', GATE_CONTRACT: GATE_POLICY}
 
 
 def parse_args(argv=None):
@@ -44,6 +47,7 @@ def parse_args(argv=None):
     parser.add_argument('--expected-issuer', help='Expected HTTPS issuer origin')
     parser.add_argument('--decision-max-age-seconds', type=int, default=900,
                         help='Maximum accepted signed gate decision age (default: 900)')
+    parser.add_argument('--evaluation-max-age-seconds', type=int, default=900, help='Maximum evaluation age, 1–86400 seconds (default 900)')
     parser.add_argument('--gate-url', default=os.getenv('RUNLOG_GATE_URL', 'https://runlog.cc/api/v1/gate'))
     return parser.parse_args(argv)
 
@@ -91,7 +95,7 @@ def require_text(mapping, key):
     return value
 
 
-def verify_evaluation_evidence(evidence_path, suite_path, workflow_path, report_path):
+def verify_evaluation_evidence(evidence_path, suite_path, workflow_path, report_path, now=None, max_age_seconds=900):
     evidence = load_json(evidence_path)
     if not isinstance(evidence, dict) or evidence.get('schema') != EVIDENCE_SCHEMA:
         raise ValueError('Expected evaluation evidence v2')
@@ -118,8 +122,34 @@ def verify_evaluation_evidence(evidence_path, suite_path, workflow_path, report_
         raise ValueError('Invalid measured evaluation summary')
     if summary['scenarios'] != summary['passed'] + summary['failed'] or summary['passed'] < 1 or summary['failed'] != 0:
         raise ValueError('Measured evaluation summary did not pass')
-    parse_timestamp(evidence['timestamp'])
+    if canonical_json(report.get('evaluated_result')) != canonical_json(result) or ('summary' in report and canonical_json(report['summary']) != canonical_json(result.get('summary'))):
+        raise ValueError('Report and evidence evaluation results contradict')
+    measured = evaluate(load_json(suite_path), trace)
+    expected_summary = {'scenarios': measured['scenarios'], 'passed': measured['passed'], 'failed': 0}
+    if summary != expected_summary:
+        raise ValueError('Evaluation summary contradicts the suite and trace')
+    verify_fresh_timestamp(evidence['timestamp'], now, max_age_seconds)
+    if evidence['policy_version'].startswith('promptfoo-') and 'promptfoo_export' not in report:
+        raise ValueError('Imported evaluator source is missing')
+    if 'promptfoo_export' in report:
+        from promptfoo_import import validate_export, PROFILE
+        if report.get('promptfoo_profile') != PROFILE or evidence['policy_version'] != PROFILE:
+            raise ValueError('Unsupported imported evaluator profile')
+        validate_export(report['promptfoo_export'], load_json(suite_path), now=now, max_age_seconds=max_age_seconds)
+        if report['promptfoo_export']['results']['timestamp'] != evidence['timestamp']:
+            raise ValueError('Imported evaluator timestamp mismatch')
     return evidence
+
+
+def verify_fresh_timestamp(timestamp, now=None, max_age_seconds=900):
+    if type(max_age_seconds) is not int or not 1 <= max_age_seconds <= MAX_AGE_SECONDS:
+        raise ValueError('Age limit must be 1–86400 seconds')
+    current = time.time() if now is None else now
+    if type(current) not in (int, float) or not math.isfinite(current):
+        raise ValueError('Invalid current time')
+    age = current - parse_timestamp(timestamp)
+    if age < 0 or age > max_age_seconds:
+        raise ValueError('Evaluation or decision is stale or in the future')
 
 
 def parse_timestamp(value):
@@ -200,7 +230,7 @@ def verify_ed25519(public_jwk, message, signature):
         raise ValueError('Invalid gate signature')
 
 
-def verify_gate_decision(decision, issuer_public_key, expected_issuer, evidence, now=None, max_age_seconds=900, expected_artifact_binding=None):
+def verify_gate_decision(decision, issuer_public_key, expected_issuer, evidence, now=None, max_age_seconds=900, expected_artifact_binding=None, expected_contract=GATE_CONTRACT):
     if not isinstance(decision, dict) or not isinstance(max_age_seconds, int) or max_age_seconds < 1:
         raise ValueError('Invalid signed gate decision')
     signed_payload, signature = decision.get('signed_payload'), decision.get('signature')
@@ -217,8 +247,8 @@ def verify_gate_decision(decision, issuer_public_key, expected_issuer, evidence,
     verify_ed25519(issuer_public_key, encoded, signature_bytes)
     if not isinstance(packet, dict) or packet.get('issuer') != expected_issuer or packet.get('verdict') != 'APPROVED':
         raise ValueError('Gate decision was not approved by expected issuer')
-    if (packet.get('gate_contract') != GATE_CONTRACT or packet.get('trace_encoding') != TRACE_ENCODING
-            or packet.get('decision_scope') != 'trace-loop-policy' or packet.get('policy_version') != GATE_POLICY):
+    if (expected_contract not in GATE_POLICIES or packet.get('gate_contract') != expected_contract or packet.get('trace_encoding') != TRACE_ENCODING
+            or packet.get('decision_scope') != 'trace-loop-policy' or packet.get('policy_version') != GATE_POLICIES[expected_contract]):
         raise ValueError('Unexpected signed gate contract or policy scope')
     required_hashes = {'suite_sha256', 'workflow_sha256', 'report_sha256', 'evidence_sha256'}
     if (not isinstance(expected_artifact_binding, dict) or set(expected_artifact_binding) != required_hashes
@@ -230,10 +260,7 @@ def verify_gate_decision(decision, issuer_public_key, expected_issuer, evidence,
             raise ValueError('Gate decision commit binding mismatch')
     if packet.get('trace_sha256') != evidence.get('gate_trace_sha256'):
         raise ValueError('Gate decision trace digest mismatch')
-    issued_at = parse_timestamp(packet.get('issued_at'))
-    current = time.time() if now is None else now
-    if not isinstance(current, (int, float)) or issued_at > current + 60 or current - issued_at > max_age_seconds:
-        raise ValueError('Gate decision is stale')
+    verify_fresh_timestamp(packet.get('issued_at'), now, max_age_seconds)
     return packet
 
 
@@ -294,11 +321,40 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError('Gate redirects are forbidden')
 
 
+def serialize_gate_payload(payload):
+    body = json.dumps(payload, allow_nan=False, separators=(',', ':')).encode('utf-8')
+    if len(body) > MAX_GATE_BYTES:
+        raise ValueError('Serialized gate request exceeds 128 KiB')
+    return body
+
+
+def find_scenario_cycle(trace):
+    if not isinstance(trace, list) or not 1 <= len(trace) <= 1000:
+        raise ValueError('Expected 1–1000 trace steps')
+    groups = {}
+    for step in trace:
+        if not isinstance(step, dict) or not isinstance(step.get('scenario_id'), str) or not step['scenario_id'].strip() or len(step['scenario_id']) > 200:
+            raise ValueError('Every v3 step requires a nonempty scenario_id')
+        if not isinstance(step.get('tool'), str) or not step['tool'].strip() or len(step['tool']) > 200 or not isinstance(step.get('args'), dict) or not number(step.get('cost_usd')):
+            raise ValueError('Invalid v3 trace step')
+        groups.setdefault(step['scenario_id'], []).append(canonical_json({'tool': step['tool'], 'args': step['args']}))
+    # Each period is scanned with a running equality streak: O(n²), no cubic slices.
+    for scenario, signatures in groups.items():
+        for period in range(1, len(signatures) // 2 + 1):
+            streak = 0
+            for index in range(period, len(signatures)):
+                streak = streak + 1 if signatures[index] == signatures[index-period] else 0
+                if streak >= period:
+                    return {'scenario_id': scenario, 'cycle_length': period, 'start': index - 2*period + 1}
+    return None
+
+
 def submit_to_gate(url, token, payload):
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
         raise ValueError('Gate URL must be HTTPS without embedded credentials or fragment')
-    req = urllib.request.Request(url, data=json.dumps(payload, allow_nan=False).encode(), headers={
+    body = serialize_gate_payload(payload)
+    req = urllib.request.Request(url, data=body, headers={
         'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', 'User-Agent': 'RunLog-ShipCheck/' + VERSION})
     with urllib.request.build_opener(NoRedirect).open(req, timeout=30) as response:
         raw = response.read(MAX_BYTES + 1)
@@ -381,7 +437,8 @@ def main(argv=None):
             if expected.scheme != 'https' or not expected.hostname or expected.path or expected.query or expected.fragment or expected.username or expected.password:
                 raise ValueError('Expected issuer must be an HTTPS origin')
             evidence = verify_evaluation_evidence(args.evaluation_evidence, args.evaluation_suite,
-                                                   args.evaluation_workflow, args.evaluation_report)
+                                                   args.evaluation_workflow, args.evaluation_report,
+                                                   max_age_seconds=args.evaluation_max_age_seconds)
             verify_expected_context(evidence, args.expected_repo, args.expected_head_sha, args.expected_base_sha)
             binding = artifact_binding(evidence, args.evaluation_evidence)
             report = load_json(args.evaluation_report)
@@ -389,6 +446,9 @@ def main(argv=None):
             payload = {'trace': trace, 'repo': evidence['repo'], 'head_sha': evidence['head_sha'],
                        'base_sha': evidence['base_sha'], 'gate_contract': GATE_CONTRACT,
                        'trace_encoding': TRACE_ENCODING, 'artifact_binding': binding}
+            serialize_gate_payload(payload)
+            if find_scenario_cycle(trace) is not None:
+                raise ValueError('Scenario tool cycle detected')
             result = submit_to_gate(args.gate_url, token, payload)
             verify_gate_decision(result, load_json(args.issuer_public_key), args.expected_issuer, evidence,
                                  max_age_seconds=args.decision_max_age_seconds, expected_artifact_binding=binding)

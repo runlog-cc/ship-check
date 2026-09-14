@@ -87,17 +87,17 @@ class EvaluationEvidenceTests(unittest.TestCase):
     def _write_bridge(self, directory):
         root = Path(directory)
         suite, workflow, report = root / 'suite.json', root / 'workflow.yml', root / 'report.json'
-        suite.write_text('{"version":1}')
+        suite.write_text(json.dumps({'version':1,'scenarios':[{'id':'lookup','assertions':{'max_steps':1}}]}))
         workflow.write_text('name: measured evaluation\n')
-        report.write_text(json.dumps({'summary': {'scenarios': 1, 'passed': 1, 'failed': 0}, 'trace': [{'scenario_id': 'lookup'}]}))
+        report.write_text(json.dumps({'evaluated_result': {'status':'PASSED','summary': {'scenarios': 1, 'passed': 1, 'failed': 0}}, 'trace': [{'scenario_id': 'lookup', 'tool':'read', 'args':{}, 'cost_usd':0}]}))
         digest = lambda path: hashlib.sha256(path.read_bytes()).hexdigest()
         evidence = {
             'schema': runner.EVIDENCE_SCHEMA, 'trace_encoding': runner.TRACE_ENCODING, 'repo': 'acme/widget',
             'head_sha': 'a' * 40, 'base_sha': 'b' * 40,
             'suite_sha256': digest(suite), 'workflow_sha256': digest(workflow),
-            'report_sha256': digest(report), 'gate_trace_sha256': runner.gate_trace_digest([{'scenario_id': 'lookup'}]),
+            'report_sha256': digest(report), 'gate_trace_sha256': runner.gate_trace_digest([{'scenario_id': 'lookup', 'tool':'read', 'args':{}, 'cost_usd':0}]),
             'evaluated_result': {'status': 'PASSED', 'summary': {'scenarios': 1, 'passed': 1, 'failed': 0}},
-            'policy_version': 'policy.v1', 'timestamp': '2026-09-08T00:00:00Z',
+            'policy_version': 'policy.v1', 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00','Z'),
         }
         evidence_path = root / 'evidence.json'
         evidence_path.write_text(json.dumps(evidence))

@@ -48,6 +48,10 @@ inputs:
   expected-issuer:
     description: Expected HTTPS gate issuer origin
     required: false
+  evaluation-max-age-seconds:
+    description: Maximum evaluation age, 1–86400 seconds; future evaluations rejected
+    default: "900"
+    required: false
   decision-max-age-seconds:
     description: Maximum accepted signed gate-decision age
     default: "900"
@@ -78,6 +82,7 @@ runs:
         EVALUATION_REPORT_PATH: ${{ inputs.evaluation-report }}
         ISSUER_PUBLIC_KEY_PATH: ${{ inputs.issuer-public-key }}
         EXPECTED_ISSUER: ${{ inputs.expected-issuer }}
+        EVALUATION_MAX_AGE_SECONDS: ${{ inputs.evaluation-max-age-seconds }}
         DECISION_MAX_AGE_SECONDS: ${{ inputs.decision-max-age-seconds }}
         RUNLOG_GATE_URL: ${{ inputs.api-url }}
         ACTION_PATH: ${{ github.action_path }}
@@ -85,7 +90,7 @@ runs:
         BASE_SHA: ${{ github.event.pull_request.base.sha }}
       run: |
         if [[ -n "$EVALUATION_EVIDENCE_PATH" ]]; then
-          args=(--evaluation-evidence "$EVALUATION_EVIDENCE_PATH" --evaluation-suite "$EVALUATION_SUITE_PATH" --evaluation-workflow "$EVALUATION_WORKFLOW_PATH" --evaluation-report "$EVALUATION_REPORT_PATH" --issuer-public-key "$ISSUER_PUBLIC_KEY_PATH" --expected-issuer "$EXPECTED_ISSUER" --decision-max-age-seconds "$DECISION_MAX_AGE_SECONDS")
+          args=(--evaluation-evidence "$EVALUATION_EVIDENCE_PATH" --evaluation-suite "$EVALUATION_SUITE_PATH" --evaluation-workflow "$EVALUATION_WORKFLOW_PATH" --evaluation-report "$EVALUATION_REPORT_PATH" --issuer-public-key "$ISSUER_PUBLIC_KEY_PATH" --expected-issuer "$EXPECTED_ISSUER" --decision-max-age-seconds "$DECISION_MAX_AGE_SECONDS" --evaluation-max-age-seconds "$EVALUATION_MAX_AGE_SECONDS")
         else
           args=(--scenarios "$SCENARIOS_PATH" --trace "$TRACE_PATH")
           if [[ -n "$BASELINE_PATH" ]]; then

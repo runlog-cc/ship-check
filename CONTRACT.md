@@ -1,4 +1,4 @@
-# Ship-Check 0.2 contract
+# Ship-Check 0.3 contract
 
 ## Canonical JSON: `runlog.canonical-json.v1`
 
@@ -86,9 +86,38 @@ Use schema `runlog.evaluation-evidence.v2` and trace_encoding above; retain repo
 head_sha, base_sha, suite_sha256, workflow_sha256, report_sha256,
 gate_trace_sha256, evaluated_result, policy_version and timestamp. The first three
 hashes are exact file-byte hashes; gate_trace_sha256 is canonical encoded trace
-hash. Evidence summary is a caller declaration checked for balanced, nonempty
-PASSED counts, not an authenticated evaluation result. evidence_sha256 is calculated
+hash. Evidence summary must match the native report and re-evaluated suite with balanced,
+nonempty PASSED counts; it remains unauthenticated caller evidence. evidence_sha256 is calculated
 over the complete evidence file by the client (never placed recursively inside it).
 
 The unreleased v1 evidence bridge is intentionally rejected: it lacked a portable
 hash and policy/artifact binding. Released v0.1 record-only users remain compatible.
+
+## V3 default and native evidence reconciliation
+
+New requests use `runlog.trace-gate.v3`; all other request and signed binding fields
+retain the v2 shape above. The signed policy is `runlog.scenario-tool-cycle.v1`,
+with decision scope `trace-loop-policy`. Canonical encoding remains v1. Each trace
+step requires `scenario_id` and `tool` as nonblank strings of at most 200 characters,
+`args` as an object, and finite nonnegative numeric `cost_usd`. There are 1–1000
+steps overall. Group exact scenario IDs in first-seen order, preserving each group's
+step order, even for interleaved scenarios. For every group, scan all adjacent
+repeating subsequences of canonical `{tool,args}` signatures, periods 1 through
+floor(group length / 2), at every position. A trailing nonrepeated step cannot hide
+a previous cycle. Detection is bounded O(n²). The Worker reports `scenario_id`,
+`cycle_length` and one-based `start_step` within the group when held.
+
+V2 semantics remain unchanged and may be verified only when explicitly selected by
+the caller; a v3 request must never accept a v2 signed packet. Native report JSON
+requires `trace` and `evaluated_result` identical to the evidence declaration.
+The native version-1 suite is re-evaluated; the resulting scenario/passed/failed
+counts must match. If a top-level report `summary` exists, it must also match.
+Imported Promptfoo records additionally embed the original JSON export, profile
+and original evaluator timestamp; validation is repeated during signed submission.
+Neither file hashes nor these checks authenticate the harness.
+
+Evidence and decision age limits default 900 seconds and accept integer overrides
+1–86400; future timestamps are rejected. Gate request bytes are the actual compact
+UTF-8 JSON serialization, limited to 131072 bytes before network I/O. Local file
+limits remain 5 MiB. No raw external-evaluator output is sent to the gate: only the
+trace, commit context and artifact hashes are transmitted.
