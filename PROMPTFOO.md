@@ -1,6 +1,6 @@
 # Promptfoo import profile
 
-Ship-Check 0.3.0 supports the explicit profile
+Ship-Check 0.3.1 supports the explicit profile
 `promptfoo-0.117.0-summary-v3-equals`. The contract is based on the pinned
 `promptfoo@0.117.0` package's JSON `writeOutput` exporter and
 `EvaluateSummaryV3` / `EvaluateResult` types. It does not assume every Promptfoo

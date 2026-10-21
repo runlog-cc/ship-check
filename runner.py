@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 
 MAX_BYTES = 5 * 1024 * 1024
-VERSION = '0.3.0'
+VERSION = '0.3.1'
 MAX_GATE_BYTES = 128 * 1024
 MAX_AGE_SECONDS = 86400
 EVIDENCE_SCHEMA = 'runlog.evaluation-evidence.v2'

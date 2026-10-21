@@ -1,4 +1,4 @@
-# RunLog Ship-Check 0.3.0
+# RunLog Ship-Check 0.3.1
 
 Ship-Check checks recorded tool assertions and can verify a signed **trace-loop
 policy** decision bound to your repository, commits and supplied artifact hashes.
@@ -7,29 +7,33 @@ create PR comments, or compare baseline cost drift. The gate signs hashes suppli
 by you; it has not independently inspected the corresponding files or evaluator.
 
 Python 3.12, no runtime dependencies. The GitHub composite action supports the
-same modes. Version 0.3.0 adds native evidence reconciliation, evaluation freshness,
+same modes. Version 0.3.1 adds native evidence reconciliation, evaluation freshness,
 request preflight bounds, a pinned evaluator import and scenario-aware cycle checks. Released 0.1.0 record-only requests remain compatible with the
 gate; the unreleased v1 evidence bridge is rejected. Signed mode needs a gate that
 supports `runlog.trace-gate.v3`; older gates fail closed. See [CONTRACT.md](CONTRACT.md).
 
+## License
+
+Ship-Check is free to use and is licensed under the MIT License. You may use, copy, modify, and redistribute it, including commercially, provided you retain the copyright and license notice. The full license is included in this repository and the source download. Hosted RunLog services have separate terms.
+
 ## Install and run offline
 
 Download the release archive and checksum file from the
-[v0.3.0 release](https://github.com/runlog-cc/ship-check/releases/tag/v0.3.0), then:
+[v0.3.1 release](https://github.com/runlog-cc/ship-check/releases/tag/v0.3.1), then:
 
 ```sh
-curl -fLO https://github.com/runlog-cc/ship-check/releases/download/v0.3.0/ship-check-0.3.0-source.tar.gz
-curl -fLO https://github.com/runlog-cc/ship-check/releases/download/v0.3.0/SHA256SUMS
-awk '$2 == "ship-check-0.3.0-source.tar.gz" {print; found=1} END {if (!found) exit 1}' SHA256SUMS > ship-check.SHA256SUMS
+curl -fLO https://github.com/runlog-cc/ship-check/releases/download/v0.3.1/ship-check-0.3.1-source.tar.gz
+curl -fLO https://github.com/runlog-cc/ship-check/releases/download/v0.3.1/SHA256SUMS
+awk '$2 == "ship-check-0.3.1-source.tar.gz" {print; found=1} END {if (!found) exit 1}' SHA256SUMS > ship-check.SHA256SUMS
 sha256sum --check ship-check.SHA256SUMS
-tar -xzf ship-check-0.3.0-source.tar.gz
-cd ship-check-0.3.0
+tar -xzf ship-check-0.3.1-source.tar.gz
+cd ship-check-0.3.1
 python3 runner.py --version
 python3 examples/harness.py --output /tmp/ship-check-demo
 python3 runner.py --offline --scenarios /tmp/ship-check-demo/suite.json --trace /tmp/ship-check-demo/trace.json
 ```
 
-Expected: `0.3.0`, then `LOCAL PASS` and a measured summary, exit 0. No account,
+Expected: `0.3.1`, then `LOCAL PASS` and a measured summary, exit 0. No account,
 key, network, or model call is needed after download. The example executes a real
 in-memory lookup tool, records its calls and legitimately records zero provider
 cost. It demonstrates wiring, not your agent's evaluation quality.
@@ -149,7 +153,7 @@ requires Node with `node:sqlite`, OpenSSL and the companion site's source:
 RUNLOG_SITE_ROOT=/path/to/projects/runlog-site node tests/worker_integration.mjs "$PWD"
 ```
 
-## 0.3.0 validation boundaries
+## 0.3.1 validation boundaries
 
 Signed mode re-runs the native suite against the report trace and requires identical
 `evaluated_result` status/summary in report and evidence. Missing or contradictory
@@ -177,7 +181,7 @@ trace steps or costs from model text.
 ## Immutable CI installation
 
 Set the protected repository variable `RUNLOG_SHIP_CHECK_COMMIT` to the reviewed
-full 40-character source commit for the 0.3.0 release. Obtain that commit from the
+full 40-character source commit for the 0.3.1 release. Obtain that commit from the
 release provenance, review it, and freeze it in your CI configuration. Do not use
 `main`, a tag, or an untrusted PR-supplied value. The complete workflow in
 `examples/ship-check.yml` validates the pin, checks out that exact commit and uses
