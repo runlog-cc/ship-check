@@ -1,11 +1,8 @@
 # Ship-Check
 
 Free, local checks for recorded agent tool traces, written in Python with a
-GitHub composite action. Part of the [RunLog public toolkit](https://runlog.cc/ship-check/),
-built and maintained by **Vasco Lacerda**. Start offline: no account, key or model
+GitHub composite action. Part of the [RunLog public toolkit](https://runlog.cc/ship-check/). Start offline: no account, key or model
 call is required. Python 3.12; no runtime dependencies.
-
-[About the developer](https://runlog.cc/about) · [Discuss a role or project](mailto:hello@runlog.cc?subject=Role%20or%20project%20discussion)
 
 [Offline verification workflow and runs](https://github.com/runlog-cc/ship-check/actions/workflows/verify.yml)
 
@@ -255,3 +252,9 @@ does not deploy anything or grant release assurance by itself.
 
 
 </details>
+
+## Author
+
+Built and maintained by **Francisco Garrett**.
+
+[About the developer](https://runlog.cc/about) · [Discuss a role or project](mailto:hello@runlog.cc?subject=Role%20or%20project%20discussion)
