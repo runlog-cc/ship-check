@@ -1,20 +1,40 @@
-# RunLog Ship-Check 0.3.1
+# Ship-Check
 
-Ship-Check checks recorded tool assertions and can verify a signed **trace-loop
-policy** decision bound to your repository, commits and supplied artifact hashes.
-It does not execute your agent, prove evaluator provenance, score answer quality,
-create PR comments, or compare baseline cost drift. The gate signs hashes supplied
-by you; it has not independently inspected the corresponding files or evaluator.
+Free, local checks for recorded agent tool traces, written in Python with a
+GitHub composite action. Part of the [RunLog public toolkit](https://runlog.cc/ship-check/),
+built and maintained by **Vasco Lacerda**. Start offline: no account, key or model
+call is required. Python 3.12; no runtime dependencies.
 
-Python 3.12, no runtime dependencies. The GitHub composite action supports the
-same modes. Version 0.3.1 adds native evidence reconciliation, evaluation freshness,
-request preflight bounds, a pinned evaluator import and scenario-aware cycle checks. Released 0.1.0 record-only requests remain compatible with the
-gate; the unreleased v1 evidence bridge is rejected. Signed mode needs a gate that
-supports `runlog.trace-gate.v3`; older gates fail closed. See [CONTRACT.md](CONTRACT.md).
+[About the developer](https://runlog.cc/about) · [Discuss a role or project](mailto:hello@runlog.cc?subject=Role%20or%20project%20discussion)
 
-## License
+[Offline verification workflow and runs](https://github.com/runlog-cc/ship-check/actions/workflows/verify.yml)
 
-Ship-Check is free to use and is licensed under the MIT License. You may use, copy, modify, and redistribute it, including commercially, provided you retain the copyright and license notice. The full license is included in this repository and the source download. Hosted RunLog services have separate terms.
+## What to inspect
+
+| Engineering decision | Implementation and evidence |
+| --- | --- |
+| Reject malformed/unsupported assertions instead of silently passing | [Checker](runner.py), [runner tests](tests/test_runner.py) |
+| Record actual tool calls and test both pass and fail paths | [Example harness](examples/harness.py), [example tests](tests/test_examples.py) |
+| Run local checks without privileged PR credentials | [Local-only CI starter](examples/offline-ci.yml), [composite action](action.yml) |
+| Bind optional signed policy to artifacts/commits without claiming evaluator truth | [Contract](CONTRACT.md), [contract tests](tests/test_contract.py) |
+
+I use AI in implementation and review, with local fixtures to check behavior.
+Ship-Check does not execute your agent, establish evaluator provenance or score
+answer quality. Its results are only as useful as the trusted records and
+assertions you supply.
+
+## Quick source check
+
+```sh
+git clone https://github.com/runlog-cc/ship-check.git
+cd ship-check
+python3 -m unittest discover -s tests
+python3 examples/harness.py --output /tmp/ship-check-demo
+python3 runner.py --offline --scenarios /tmp/ship-check-demo/suite.json --trace /tmp/ship-check-demo/trace.json
+```
+
+Expected: passing tests, then `LOCAL PASS` and exit 0. For stable archive/checksum
+installation instead, use the reviewed 0.3.1 downloads below.
 
 ## Install and run offline
 
@@ -67,12 +87,58 @@ records fail. Capture actual USD cost; unknown cost must fail the harness rather
 than becoming zero. `--baseline-trace` checks the same assertions and displays a
 separate summary; it has no automatic regression/delta threshold.
 
-Omit `--offline` and supply `RUNLOG_TOKEN` or `RUNLOG_API_KEY` securely to send the
+## Local-only CI starter
+
+Copy [examples/offline-ci.yml](examples/offline-ci.yml) into a project's
+`.github/workflows/ship-check.yml`. Set `RUNLOG_SHIP_CHECK_COMMIT` to a reviewed
+full public release commit, for example after inspecting and resolving
+`git rev-parse 'v0.3.1^{commit}'` in this source checkout. The job executes the local
+demo and assertion checker on PRs without secrets, paid calls or a hosted gate.
+Replace the demo with your real evaluator and require its job in branch rules
+before relying on it to prevent regressions.
+
+## Verification
+
+```sh
+python3 -m unittest discover -s tests
+```
+
+## Pinned evaluator import
+
+See [PROMPTFOO.md](PROMPTFOO.md) for the explicitly supported Promptfoo 0.117.0
+JSON export subset and the offline import command. The importer validates actual
+text equality assertions as well as success/grading/count declarations and native
+trace assertions. It requires caller-recorded trace evidence and does not invent
+trace steps or costs from model text.
+
+## Documentation and released versions
+
+These default-branch docs describe the existing **0.3.1** runtime. Published
+`v0.3.1` tags, downloads and checksums remain unchanged; this documentation update
+is not a new package release. `RELEASE.json` describes historical export context,
+not the current public branch commit. For a CI source pin, review the public tag
+and resolve it with `git rev-parse 'v0.3.1^{commit}'`; do not use an export hash as
+though it were a public repository commit.
+
+## Free use and license
+
+MIT-licensed source, including commercial use with the required notice. See
+[LICENSE](LICENSE). The public tool has no subscription or credit purchase.
+Existing signed-hosted integrations have separate authorization and remain
+outside this local toolkit.
+
+<details>
+<summary>Existing signed integrations and maintainer-only checks</summary>
+
+For an **existing provisioned hosted integration only**, omit `--offline` and supply `RUNLOG_TOKEN` or `RUNLOG_API_KEY` securely to send the
 legacy recorded trace to `https://runlog.cc/api/v1/gate`. Legacy mode requires an
 APPROVED response over HTTPS but does not verify a signature. Redact credentials
 and customer data from tool arguments before submission.
 
-## Signed trace policy with artifact and commit binding
+## Existing integrations: signed trace policy
+
+Hosted gate provisioning and new paid access remain deferred. This section is
+for existing integrations; local checks do not grant hosted access.
 
 Create a report with a nonempty `trace` array and an evidence file following
 [CONTRACT.md](CONTRACT.md). `examples/harness.py` produces all five example files
@@ -107,11 +173,19 @@ Decisions must be APPROVED, no older than 900 seconds by default, and no more th
 60 seconds in the future. Files/responses are capped at 5 MiB; the gate accepts
 1–1000 steps. HTTPS, no redirects, 30-second timeout; errors omit sensitive content.
 
-The loop policy detects two consecutive repeated tool+args cycles of length 1–10
-across the flat trace. Legitimate repeats and separate scenarios can cause HOLD.
-It does not enforce cost or semantic quality; your trusted evaluator must do that.
+The current v3 policy groups steps by exact scenario ID and scans adjacent
+repeated tool+args cycles across every bounded period within each group. At most
+1000 total steps are accepted; independent scenarios cannot form a cycle
+together. Legitimate repetition can still cause HOLD. This is a pattern policy,
+not independent cost or semantic-quality evaluation. The historical v2 flat-trace
+policy is available only when explicitly selected; see [CONTRACT.md](CONTRACT.md).
 
-## Complete CI starter
+## Existing integrations: combined signed CI example
+
+The older combined starter below also contains a credentialed signed-main job.
+Use it only with an already provisioned, independently trusted hosted issuer;
+it is not the default free-toolkit onboarding path.
+
 
 Copy [examples/ship-check.yml](examples/ship-check.yml) to
 `.github/workflows/ship-check.yml` in a repository with a `main` branch and at
@@ -139,13 +213,9 @@ immutable artifact identity; do not use the verifier workflow's `github.sha` as
 the candidate head. Pass all three `expected-*` action inputs explicitly there.
 A signed hash is not a replacement for that trusted artifact/evaluator handoff.
 
-## Verification
-
-```sh
-python3 -m unittest discover -s tests
-```
-
-For maintainers, the full actual-CLI/HTTPS/Worker/Ed25519 integration runs against
+The standalone command above is the public checkout test surface. The optional
+maintainer integration below is **not self-contained in this repository**. It
+runs actual CLI/HTTPS/Worker/Ed25519 integration against
 an in-memory Worker database and fake auth, with no external provider calls. It
 requires Node with `node:sqlite`, OpenSSL and the companion site's source:
 
@@ -170,22 +240,18 @@ It remains a pattern policy, not a cost or answer-quality gate. Explicit v2 pack
 verification is available through `verify_gate_decision(..., expected_contract=
 'runlog.trace-gate.v2')`; normal v3 CLI requests reject downgraded v2 decisions.
 
-## Pinned evaluator import
-
-See [PROMPTFOO.md](PROMPTFOO.md) for the explicitly supported Promptfoo 0.117.0
-JSON export subset and the offline import command. The importer validates actual
-text equality assertions as well as success/grading/count declarations and native
-trace assertions. It requires caller-recorded trace evidence and does not invent
-trace steps or costs from model text.
-
 ## Immutable CI installation
 
 Set the protected repository variable `RUNLOG_SHIP_CHECK_COMMIT` to the reviewed
 full 40-character source commit for the 0.3.1 release. Obtain that commit from the
-release provenance, review it, and freeze it in your CI configuration. Do not use
-`main`, a tag, or an untrusted PR-supplied value. The complete workflow in
+reviewed public tag with `git rev-parse 'v0.3.1^{commit}'`, inspect that commit,
+and freeze the resulting SHA in CI. Do not use the inherited `RELEASE.json`
+export hash, a moving `main`/tag ref, or an untrusted PR-supplied value. The complete workflow in
 `examples/ship-check.yml` validates the pin, checks out that exact commit and uses
 its local composite action. This avoids inventing a release commit before publish.
 Protect the workflow, variable, suite, evaluator and issuer key. A deployment job
 must explicitly `needs: signed-trace-policy` to depend on this check; this example
 does not deploy anything or grant release assurance by itself.
+
+
+</details>
