@@ -1,0 +1,39 @@
+# Copy into your application's .github/workflows/ship-check.yml.
+# Set RUNLOG_SHIP_CHECK_COMMIT to a reviewed public Ship-Check commit (40 hex).
+# Replace this demonstration harness with your application's real tests.
+name: Local recorded assertions
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  recorded-assertions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Require an independently reviewed source pin
+        env:
+          SHIP_COMMIT: ${{ vars.RUNLOG_SHIP_CHECK_COMMIT }}
+        run: '[[ "$SHIP_COMMIT" =~ ^[0-9a-f]{40}$ ]]'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: runlog-cc/ship-check
+          ref: ${{ vars.RUNLOG_SHIP_CHECK_COMMIT }}
+          path: .ship-check
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Record the local demonstration tool
+        run: python .ship-check/examples/harness.py --output .runlog
+      - uses: ./.ship-check
+        with:
+          offline: 'true'
+          scenarios: .runlog/suite.json
+          trace: .runlog/trace.json
